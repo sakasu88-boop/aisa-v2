@@ -34,10 +34,26 @@
             spellcheck="false"
           />
         </div>
+        <div class="store-filter-row">
+          <label class="store-filter-label" for="store-filter">店舗（Algolia フィルタ）</label>
+          <input
+            id="store-filter"
+            class="store-filter-input"
+            type="text"
+            inputmode="text"
+            placeholder="storeId（.env の VITE_DEFAULT_STORE_ID で初期化可）"
+            autocomplete="off"
+          />
+        </div>
       </header>
 
       <main class="main">
-        <section class="map-section" aria-label="店内マップ">
+        <section class="results-section" aria-label="検索結果">
+          <h2 class="results-heading">検索結果</h2>
+          <div id="search-results" class="search-results"></div>
+        </section>
+
+        <section class="map-section" id="map-section" aria-label="店内マップ">
           <div class="map-frame">
             <div class="map-placeholder" role="img" aria-label="店内マップのプレースホルダー">
               <div class="map-grid"></div>
@@ -45,18 +61,19 @@
               <div class="map-aisle map-aisle--2"></div>
               <div class="map-label">フロアマップ（プレビュー）</div>
             </div>
-            <div class="map-pin" aria-hidden="true" title="目的地の目安">
+            <div class="map-pin" id="map-pin" hidden aria-hidden="true" title="目的地の目安">
               <span class="map-pin-emoji">📍</span>
             </div>
           </div>
         </section>
 
         <section class="route-panel" aria-label="自然言語によるルート案内">
-          <p class="route-kicker">ルート案内</p>
-          <p class="route-lead">言葉だけで、目的地までたどり着けるようにまとめています。</p>
+          <p class="route-kicker" id="route-kicker">ルート案内</p>
+          <p class="route-lead">検索結果の「地図で見る」で、ここに案内が表示されます。</p>
           <p class="route-text" id="route-natural">
-            入口を入って右奥の、<strong class="route-highlight">野菜コーナー A-3 棚</strong>です。レジ方面から来る場合は、パン売り場の横の通路を抜けてすぐ左手です。
+            商品を検索して、カードの <strong class="route-highlight">地図で見る</strong> をタップしてください。
           </p>
+          <p class="map-hint-customer" id="map-hint-line"></p>
         </section>
       </main>
     </div>

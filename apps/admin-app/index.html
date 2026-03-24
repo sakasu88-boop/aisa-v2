@@ -96,24 +96,103 @@
           <section class="panel panel--map" aria-labelledby="map-heading">
             <div class="panel-head panel-head--split">
               <div>
-                <h2 id="map-heading" class="panel-title">マップ &amp; ピン座標（予定）</h2>
+                <h2 id="map-heading" class="panel-title">マップ &amp; ピン座標</h2>
                 <p class="panel-sub">
                   マップ画像をプレビューしながらクリックし、ピン用の <strong>X, Y</strong>（0–1 正規化）を取得するエリアの枠組みです。
                 </p>
               </div>
               <div class="coord-readout" aria-live="polite">
-                <span class="coord-label">最後のクリック</span>
+                <span class="coord-label">最後のクリック（0–1）</span>
                 <span class="coord-values" id="coord-xy">X: —　Y: —</span>
               </div>
             </div>
-            <div class="map-workspace" id="map-workspace" role="application" aria-label="マッププレビュー（クリックで座標取得）">
-              <div class="map-workspace-inner">
-                <div class="map-preview-grid"></div>
-                <div class="map-preview-fake-aisle"></div>
-                <span class="map-preview-badge">プレースホルダー</span>
+
+            <div class="map-plot" id="map-plot-root">
+              <div class="map-plot-toolbar">
+                <label class="btn btn--secondary map-file-label">
+                  画像を選択
+                  <input type="file" id="map-file-input" accept="image/*" hidden />
+                </label>
+                <button type="button" class="btn btn--secondary" id="map-reset">デフォルト表示</button>
+                <button type="button" class="btn btn--secondary" id="map-clear-pin">ピンを消す</button>
+              </div>
+              <div class="map-stage" id="map-stage" role="application" aria-label="マップ画像。クリックでピンと座標を設定">
+                <img id="map-image" class="map-stage-img" alt="" width="800" height="600" hidden decoding="async" />
+                <div class="map-stage-fallback" id="map-fallback">
+                  <div class="map-preview-grid"></div>
+                  <div class="map-preview-fake-aisle"></div>
+                  <span class="map-preview-badge">プレースホルダー（画像を選ぶと差し替わります）</span>
+                </div>
+                <div class="map-pin-layer" id="map-pin-layer"></div>
+              </div>
+              <div class="map-json-row">
+                <div class="map-json-head">
+                  <span class="coord-label">保存用 JSON（正規化座標）</span>
+                  <button type="button" class="btn btn--secondary btn--sm" id="map-copy-json">JSON をコピー</button>
+                </div>
+                <pre class="map-json" id="map-json">{}</pre>
+              </div>
+
+              <div class="map-item-form" id="map-item-form">
+                <h3 class="map-item-form-title">商品データを Firestore に保存</h3>
+                <p class="map-item-form-lead">
+                  <code>stores / {storeId} / items / {itemId}</code> へ書き込みます。<strong>chainId / storeId / updatedAt</strong> は Claims とサーバー時刻で自動設定されます。
+                </p>
+                <div class="map-item-form-grid">
+                  <div class="field">
+                    <label for="field-store-id">店舗 ID（storeId）</label>
+                    <input id="field-store-id" class="input" type="text" autocomplete="off" placeholder="例: store_A" />
+                  </div>
+                  <div class="field">
+                    <label for="field-item-id">商品ドキュメント ID（SKU / JAN 等）</label>
+                    <div class="field-inline">
+                      <input id="field-item-id" class="input" type="text" autocomplete="off" placeholder="空欄なら自動生成" />
+                      <button type="button" class="btn btn--secondary btn--sm" id="btn-gen-item-id">自動生成</button>
+                    </div>
+                  </div>
+                  <div class="field field--full">
+                    <label for="field-item-name">商品名 <span class="req">必須</span></label>
+                    <input id="field-item-name" class="input" type="text" autocomplete="off" placeholder="例: 完熟バナナ" />
+                  </div>
+                  <div class="field">
+                    <label for="field-item-category">カテゴリ <span class="req">必須</span></label>
+                    <select id="field-item-category" class="input select" required aria-required="true"></select>
+                  </div>
+                  <div class="field">
+                    <label for="field-section-name">棚・ゾーン名（location.sectionName）</label>
+                    <input id="field-section-name" class="input" type="text" autocomplete="off" placeholder="例: A-3棚" />
+                  </div>
+                  <div class="field field--full">
+                    <label for="field-item-guide">案内テキスト（guideText） <span class="req">必須</span></label>
+                    <textarea id="field-item-guide" class="input textarea" rows="3" placeholder="自然言語の案内（空欄不可）" required></textarea>
+                  </div>
+                  <div class="field">
+                    <label for="field-internal-code">内部コード（internalCode）お客様には非表示</label>
+                    <input id="field-internal-code" class="input" type="text" autocomplete="off" placeholder="例: A-3" />
+                  </div>
+                  <div class="field">
+                    <label for="field-display-label">表示用ラベル（displayLabel）</label>
+                    <input id="field-display-label" class="input" type="text" autocomplete="off" placeholder="例: くだものコーナー入口" />
+                  </div>
+                  <div class="field">
+                    <label for="field-category-icon">カテゴリアイコン（categoryIcon）</label>
+                    <input id="field-category-icon" class="input" type="text" autocomplete="off" placeholder="例: 🍌" maxlength="8" />
+                  </div>
+                  <div class="field">
+                    <label for="field-theme-color">テーマカラー（themeColor）</label>
+                    <input id="field-theme-color" class="input" type="text" autocomplete="off" placeholder="#FFD700" pattern="#[0-9A-Fa-f]{6}" />
+                  </div>
+                </div>
+                <div class="map-item-form-actions">
+                  <button type="button" class="btn btn--primary" id="btn-save-item">Firestore に保存</button>
+                </div>
+                <p class="map-save-status" id="save-item-status" role="status" aria-live="polite"></p>
               </div>
             </div>
-            <p class="map-hint">※ 本番では Storage の画像を重ね、クリック位置を正規化してピン JSON に保存します。</p>
+            <p class="map-hint">
+              クリック位置は表示中のマップ領域（画像またはプレースホルダー）に対する相対座標（0–1）です。本番では Storage
+              の画像と Firestore のピン JSON を紐付けます。
+            </p>
           </section>
         </main>
       </div>

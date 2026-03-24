@@ -7,6 +7,9 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "algoliasearch": "^5.15.0"
+  },
   "devDependencies": {
     "vite": "^6.0.0"
   }

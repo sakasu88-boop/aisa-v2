@@ -1,6 +1,23 @@
 import './styles.css';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase-client';
+import { saveStoreItem } from './lib/db-service.js';
+import { ITEM_CATEGORY_OPTIONS, isAllowedCategory } from './lib/item-categories.js';
+import { initMapPlot } from './map-plot.js';
+
+function fillCategorySelect() {
+  const sel = document.getElementById('field-item-category');
+  if (!sel || sel.tagName !== 'SELECT') return;
+  while (sel.firstChild) sel.removeChild(sel.firstChild);
+  for (const o of ITEM_CATEGORY_OPTIONS) {
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    sel.appendChild(opt);
+  }
+}
+
+fillCategorySelect();
 
 const appRoot = document.getElementById('app');
 const modal = document.getElementById('login-modal');
@@ -8,8 +25,6 @@ const openBtns = [document.getElementById('open-login'), document.getElementById
   Boolean,
 );
 const closeBtn = document.getElementById('close-login');
-const mapWorkspace = document.getElementById('map-workspace');
-const coordXy = document.getElementById('coord-xy');
 const loginForm = document.getElementById('login-form');
 const loginError = document.getElementById('login-error');
 const loginSubmit = document.getElementById('login-submit');
@@ -97,7 +112,7 @@ function clearAdminUI() {
   }
 }
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
     loginModalForced = false;
     clearLoginSubmitting();
@@ -105,11 +120,38 @@ onAuthStateChanged(auth, (user) => {
     closeModal();
     appRoot?.removeAttribute('aria-hidden');
     renderAdminUI(user);
+    await applyStoreFieldFromClaims(user);
   } else {
     clearAdminUI();
+    resetStoreItemForm();
     showLoginModal();
   }
 });
+
+/** @param {import('firebase/auth').User} user */
+async function applyStoreFieldFromClaims(user) {
+  const el = document.getElementById('field-store-id');
+  if (!el) return;
+  try {
+    const { claims } = await user.getIdTokenResult(true);
+    if (claims.storeId) {
+      el.value = String(claims.storeId);
+    } else {
+      el.value = '';
+    }
+    el.readOnly = claims.role === 'store_staff';
+  } catch (e) {
+    if (import.meta.env.DEV) console.error('[claims]', e);
+  }
+}
+
+function resetStoreItemForm() {
+  const status = document.getElementById('save-item-status');
+  if (status) {
+    status.textContent = '';
+    status.classList.remove('is-ok', 'is-err');
+  }
+}
 
 openBtns.forEach((btn) =>
   btn.addEventListener('click', () => {
@@ -175,13 +217,123 @@ logoutBtn?.addEventListener('click', async () => {
   }
 });
 
-if (mapWorkspace && coordXy) {
-  mapWorkspace.addEventListener('click', (e) => {
-    const rect = mapWorkspace.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    const clampedX = Math.min(1, Math.max(0, x));
-    const clampedY = Math.min(1, Math.max(0, y));
-    coordXy.textContent = `X: ${clampedX.toFixed(4)}　Y: ${clampedY.toFixed(4)}`;
-  });
+const mapPlotApi = initMapPlot();
+
+function setSaveItemStatus(message, kind) {
+  const el = document.getElementById('save-item-status');
+  if (!el) return;
+  el.textContent = message ?? '';
+  el.classList.remove('is-ok', 'is-err');
+  if (kind === 'ok') el.classList.add('is-ok');
+  if (kind === 'err') el.classList.add('is-err');
 }
+
+document.getElementById('btn-gen-item-id')?.addEventListener('click', () => {
+  const input = document.getElementById('field-item-id');
+  if (input && typeof crypto !== 'undefined' && crypto.randomUUID) {
+    input.value = crypto.randomUUID();
+  }
+});
+
+document.getElementById('btn-save-item')?.addEventListener('click', async () => {
+  setSaveItemStatus('', null);
+
+  const user = auth.currentUser;
+  if (!user) {
+    setSaveItemStatus('ログインしてください。', 'err');
+    return;
+  }
+
+  let tokenResult;
+  try {
+    tokenResult = await user.getIdTokenResult(true);
+  } catch (e) {
+    setSaveItemStatus('トークンを取得できませんでした。再度ログインしてください。', 'err');
+    return;
+  }
+
+  const claims = tokenResult.claims;
+  const authInfo = {
+    chainId: claims.chainId,
+    storeId: claims.storeId,
+    role: claims.role,
+  };
+
+  const storeIdRaw = document.getElementById('field-store-id')?.value?.trim() ?? '';
+  let itemIdRaw = document.getElementById('field-item-id')?.value?.trim() ?? '';
+  if (!itemIdRaw) {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      itemIdRaw = crypto.randomUUID();
+      const itemIdInput = document.getElementById('field-item-id');
+      if (itemIdInput) itemIdInput.value = itemIdRaw;
+    } else {
+      setSaveItemStatus('商品IDを入力するか、「自動生成」を押してください。', 'err');
+      return;
+    }
+  }
+
+  const name = document.getElementById('field-item-name')?.value?.trim() ?? '';
+  if (!name) {
+    setSaveItemStatus('商品名は必須です。', 'err');
+    return;
+  }
+
+  const coords = mapPlotApi?.getLastCoords?.() ?? { x: null, y: null };
+  if (coords.x == null || coords.y == null || Number.isNaN(coords.x) || Number.isNaN(coords.y)) {
+    setSaveItemStatus('マップ上をクリックしてピン（座標）を指定してください。', 'err');
+    return;
+  }
+
+  const category = document.getElementById('field-item-category')?.value?.trim() ?? '';
+  if (!isAllowedCategory(category)) {
+    setSaveItemStatus('カテゴリを一覧から選択してください。', 'err');
+    return;
+  }
+
+  const sectionName = document.getElementById('field-section-name')?.value?.trim() ?? '';
+  const guideText = document.getElementById('field-item-guide')?.value?.trim() ?? '';
+  if (!guideText) {
+    setSaveItemStatus('案内テキストを入力してください。', 'err');
+    return;
+  }
+
+  const internalCode = document.getElementById('field-internal-code')?.value?.trim() ?? '';
+  const displayLabel = document.getElementById('field-display-label')?.value?.trim() ?? '';
+  const categoryIcon = document.getElementById('field-category-icon')?.value?.trim() ?? '';
+  const themeColor = document.getElementById('field-theme-color')?.value?.trim() ?? '';
+
+  const itemData = {
+    name,
+    category,
+    location: {
+      x: coords.x,
+      y: coords.y,
+      ...(sectionName ? { sectionName } : {}),
+    },
+    guideText,
+    ...(internalCode ? { internalCode } : {}),
+    ...(displayLabel ? { displayLabel } : {}),
+    ...(categoryIcon ? { categoryIcon } : {}),
+    ...(themeColor ? { themeColor } : {}),
+  };
+
+  const btn = document.getElementById('btn-save-item');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '保存中…';
+  }
+
+  try {
+    await saveStoreItem(storeIdRaw, itemIdRaw, itemData, authInfo);
+    setSaveItemStatus(`保存しました（stores / ${storeIdRaw} / items）`, 'ok');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    setSaveItemStatus(msg || '保存に失敗しました。', 'err');
+    if (import.meta.env.DEV) console.error('[save]', err);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Firestore に保存';
+    }
+  }
+});

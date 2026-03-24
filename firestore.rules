@@ -4,9 +4,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // -------------------------------------------------------------------------
-    // Helpers: 認証・ロール（Custom Claims: role, chainId, storeId）
-    // chain_admin: chainId が必須。storeId は未設定でも可。
-    // store_staff: storeId と chainId（所属チェーン）を設定推奨。
+    // Custom Claims（主キー）: role, chainId, storeId（主所属）
+    // Firestore users/{uid}.accessibleStores で複数店舗を補助（ルール内 get）
+    // 注意: get() は評価ごとに課金対象。クレームで済む範囲はクレーム優先。
     // -------------------------------------------------------------------------
 
     function signedIn() {
@@ -37,32 +37,59 @@ service cloud.firestore {
       return signedIn() && role() == 'store_staff';
     }
 
-    // エンドユーザー（匿名・一般ログイン）およびロールなしは一切許可しない
-    function hasPrivilegedRole() {
-      return isChainAdmin() || isStoreStaff();
-    }
-
     function chainAdminOwnsChainId(cid) {
       return isChainAdmin()
         && chainIdClaim() != ''
         && cid == chainIdClaim();
     }
 
-    function storeStaffOwnsStoreId(sid) {
-      return isStoreStaff()
-        && storeIdClaim() != ''
-        && sid == storeIdClaim();
+    // 店舗スタッフ: トークンの主所属 storeId、または users/{uid}.accessibleStores に含まれる店舗
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // ドキュメント上の chainId / storeId とクレームの整合
+    function userHasAccessibleStoresList() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().keys().hasAny(['accessibleStores'])
+        && userDoc().accessibleStores is list;
+    }
+
+    // 左側を先に評価: 主所属（Claims の storeId）一致時は get(users/...) を評価しない（短絡）
+    function storeStaffMayAccessStoreId(sid) {
+      return isStoreStaff()
+        && chainIdClaim() != ''
+        && sid is string
+        && sid != ''
+        && (
+          sid == storeIdClaim()
+          || (
+            userHasAccessibleStoresList()
+            && sid in userDoc().accessibleStores
+          )
+        );
+    }
+
     function chainAdminCanAccessDocData() {
       return resource.data.keys().hasAll(['chainId'])
         && chainAdminOwnsChainId(resource.data.chainId);
     }
 
     function storeStaffCanAccessDocData() {
+      return resource.data.keys().hasAll(['chainId', 'storeId'])
+        && resource.data.chainId == chainIdClaim()
+        && storeStaffMayAccessStoreId(resource.data.storeId);
+    }
+
+    // パス上の storeId とドキュメントの storeId を一致させる（改ざん防止）
+    function docStoreIdMatchesPath(storeId) {
       return resource.data.keys().hasAll(['storeId'])
-        && storeStaffOwnsStoreId(resource.data.storeId);
+        && resource.data.storeId == storeId;
+    }
+
+    function createChainAdminWritesStoreDoc(storeId) {
+      return request.resource.data.keys().hasAll(['chainId', 'storeId'])
+        && chainAdminOwnsChainId(request.resource.data.chainId)
+        && request.resource.data.storeId == storeId;
     }
 
     function createChainAdminWritesOwnChain() {
@@ -72,12 +99,20 @@ service cloud.firestore {
 
     function createStoreStaffWritesOwnStore() {
       return request.resource.data.keys().hasAll(['storeId', 'chainId'])
-        && storeStaffOwnsStoreId(request.resource.data.storeId)
-        && request.resource.data.chainId == chainIdClaim();
+        && request.resource.data.chainId == chainIdClaim()
+        && storeStaffMayAccessStoreId(request.resource.data.storeId);
     }
 
     // -------------------------------------------------------------------------
-    // chains: チェーンメタ（chain_admin のみ自チェーン）
+    // users/{uid} — プロフィール（Claims と同期するメタ。クライアント直接更新は禁止）
+    // -------------------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update, delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // chains
     // -------------------------------------------------------------------------
     match /chains/{chainId} {
       allow read: if signedIn() && chainAdminOwnsChainId(chainId);
@@ -95,27 +130,45 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
-    // stores: 店舗（chain_admin はチェーン内全店、store_staff は自店のみ）
+    // stores
     // -------------------------------------------------------------------------
     match /stores/{storeId} {
       allow read: if signedIn() && (
-        (isChainAdmin() && chainAdminCanAccessDocData())
-        || (isStoreStaff() && storeStaffCanAccessDocData())
+        (isChainAdmin() && chainAdminCanAccessDocData() && docStoreIdMatchesPath(storeId))
+        || (isStoreStaff() && storeStaffCanAccessDocData() && docStoreIdMatchesPath(storeId))
       );
 
       allow create: if signedIn() && (
-        createChainAdminWritesOwnChain()
+        createChainAdminWritesStoreDoc(storeId)
         || createStoreStaffWritesOwnStore()
       );
 
       allow update, delete: if signedIn() && (
-        (isChainAdmin() && chainAdminCanAccessDocData())
-        || (isStoreStaff() && storeStaffCanAccessDocData())
+        (isChainAdmin() && chainAdminCanAccessDocData() && docStoreIdMatchesPath(storeId))
+        || (isStoreStaff() && storeStaffCanAccessDocData() && docStoreIdMatchesPath(storeId))
       );
+
+      // 店舗配下（例: マップ上のピン・棚）— 親パス storeId と data.storeId を一致
+      match /items/{itemId} {
+        allow read: if signedIn() && (
+          (isChainAdmin() && chainAdminCanAccessDocData() && docStoreIdMatchesPath(storeId))
+          || (isStoreStaff() && storeStaffCanAccessDocData() && docStoreIdMatchesPath(storeId))
+        );
+
+        allow create: if signedIn() && (
+          createChainAdminWritesStoreDoc(storeId)
+          || createStoreStaffWritesOwnStore()
+        );
+
+        allow update, delete: if signedIn() && (
+          (isChainAdmin() && chainAdminCanAccessDocData() && docStoreIdMatchesPath(storeId))
+          || (isStoreStaff() && storeStaffCanAccessDocData() && docStoreIdMatchesPath(storeId))
+        );
+      }
     }
 
     // -------------------------------------------------------------------------
-    // products: 商品マスタ（店舗スコープ + チェーン整合）
+    // products（トップレベル）
     // -------------------------------------------------------------------------
     match /products/{productId} {
       allow read: if signedIn() && (
@@ -135,8 +188,7 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
-    // categories / inventory 等: 同じスキーマ規約（chainId, storeId）で統一
-    // 新規コレクション追加時はここに match を足すか、下のフォールバックを調整
+    // categories
     // -------------------------------------------------------------------------
     match /categories/{categoryId} {
       allow read: if signedIn() && (
@@ -155,8 +207,6 @@ service cloud.firestore {
       );
     }
 
-    // -------------------------------------------------------------------------
-    // 明示しなかったパスはすべて拒否（カスタマー・不正ロールの read/write 遮断）
     // -------------------------------------------------------------------------
     match /{document=**} {
       allow read, write: if false;

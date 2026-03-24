@@ -7,6 +7,12 @@
     "scripts": {
       "dev:admin": "npm run dev -w apps/admin-app",
       "dev:customer": "npm run dev -w apps/customer-app",
-      "install:all": "npm install"
+      "install:all": "npm install",
+      "build:admin": "npm run build -w apps/admin-app",
+      "build:customer": "npm run build -w apps/customer-app",
+      "build:all": "npm run build:admin && npm run build:customer",
+      "verify:customer:bundle": "node scripts/verify-customer-bundle.mjs",
+      "verify:customer": "npm run build:customer && npm run verify:customer:bundle",
+      "deploy": "firebase deploy"
     }
   }

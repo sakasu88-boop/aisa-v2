@@ -231,6 +231,154 @@ body {
   color: var(--accent);
 }
 
+.route-pop {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.map-hint-customer {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.store-filter-row {
+  margin-top: 10px;
+  padding: 0 2px;
+}
+
+.store-filter-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.store-filter-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  font: inherit;
+  font-size: 0.88rem;
+  background: var(--surface);
+}
+
+.results-section {
+  width: 100%;
+}
+
+.results-heading {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 80px;
+}
+
+.search-empty {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.search-mock-badge {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #92400e;
+  background: #fffbeb;
+  border-radius: 10px;
+  border: 1px solid #fde68a;
+}
+
+.hit-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px 14px 16px;
+  background: var(--surface);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-left: 4px solid var(--hit-accent, var(--accent));
+}
+
+.hit-card-visual {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  font-size: 1.75rem;
+  background: linear-gradient(145deg, rgba(13, 148, 136, 0.08), rgba(14, 165, 233, 0.08));
+  border-radius: 16px;
+}
+
+.hit-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.hit-card-title {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.hit-card-place {
+  margin: 0 0 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f766e;
+}
+
+.hit-card-guide {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.hit-card-guide .guide-keyword,
+.route-text .guide-keyword {
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.hit-card-map-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, var(--hit-accent, var(--accent)), #0ea5e9);
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
+}
+
+.hit-card-map-btn:active {
+  transform: scale(0.98);
+}
+
+.map-pin[hidden] {
+  display: none;
+}
+
 @media (min-width: 600px) {
   #app {
     max-width: 520px;

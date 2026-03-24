@@ -1,0 +1,36 @@
+# main へマージされたら Hosting（admin-site + customer-site）を本番デプロイ
+# 要: Repository secrets に FIREBASE_TOKEN を設定（docs/github-actions-deploy.md 参照）
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy-hosting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all frontends
+        run: npm run build:all
+
+      - name: Verify customer bundle (no Admin key markers)
+        run: npm run verify:customer:bundle
+
+      - name: Deploy Hosting to Firebase
+        run: npx firebase-tools@13 deploy --only hosting --non-interactive
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
