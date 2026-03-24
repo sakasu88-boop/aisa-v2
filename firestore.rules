@@ -1,0 +1,165 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // Helpers: 認証・ロール（Custom Claims: role, chainId, storeId）
+    // chain_admin: chainId が必須。storeId は未設定でも可。
+    // store_staff: storeId と chainId（所属チェーン）を設定推奨。
+    // -------------------------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() ? request.auth.token.role : '';
+    }
+
+    function chainIdClaim() {
+      return signedIn() && request.auth.token.chainId is string
+        ? request.auth.token.chainId
+        : '';
+    }
+
+    function storeIdClaim() {
+      return signedIn() && request.auth.token.storeId is string
+        ? request.auth.token.storeId
+        : '';
+    }
+
+    function isChainAdmin() {
+      return signedIn() && role() == 'chain_admin';
+    }
+
+    function isStoreStaff() {
+      return signedIn() && role() == 'store_staff';
+    }
+
+    // エンドユーザー（匿名・一般ログイン）およびロールなしは一切許可しない
+    function hasPrivilegedRole() {
+      return isChainAdmin() || isStoreStaff();
+    }
+
+    function chainAdminOwnsChainId(cid) {
+      return isChainAdmin()
+        && chainIdClaim() != ''
+        && cid == chainIdClaim();
+    }
+
+    function storeStaffOwnsStoreId(sid) {
+      return isStoreStaff()
+        && storeIdClaim() != ''
+        && sid == storeIdClaim();
+    }
+
+    // ドキュメント上の chainId / storeId とクレームの整合
+    function chainAdminCanAccessDocData() {
+      return resource.data.keys().hasAll(['chainId'])
+        && chainAdminOwnsChainId(resource.data.chainId);
+    }
+
+    function storeStaffCanAccessDocData() {
+      return resource.data.keys().hasAll(['storeId'])
+        && storeStaffOwnsStoreId(resource.data.storeId);
+    }
+
+    function createChainAdminWritesOwnChain() {
+      return request.resource.data.keys().hasAll(['chainId'])
+        && chainAdminOwnsChainId(request.resource.data.chainId);
+    }
+
+    function createStoreStaffWritesOwnStore() {
+      return request.resource.data.keys().hasAll(['storeId', 'chainId'])
+        && storeStaffOwnsStoreId(request.resource.data.storeId)
+        && request.resource.data.chainId == chainIdClaim();
+    }
+
+    // -------------------------------------------------------------------------
+    // chains: チェーンメタ（chain_admin のみ自チェーン）
+    // -------------------------------------------------------------------------
+    match /chains/{chainId} {
+      allow read: if signedIn() && chainAdminOwnsChainId(chainId);
+
+      allow create: if signedIn()
+        && isChainAdmin()
+        && chainIdClaim() == chainId
+        && request.resource.data.keys().hasAll(['chainId'])
+        && request.resource.data.chainId == chainId;
+
+      allow update, delete: if signedIn()
+        && chainAdminOwnsChainId(chainId)
+        && resource.data.chainId == chainId
+        && request.resource.data.chainId == chainId;
+    }
+
+    // -------------------------------------------------------------------------
+    // stores: 店舗（chain_admin はチェーン内全店、store_staff は自店のみ）
+    // -------------------------------------------------------------------------
+    match /stores/{storeId} {
+      allow read: if signedIn() && (
+        (isChainAdmin() && chainAdminCanAccessDocData())
+        || (isStoreStaff() && storeStaffCanAccessDocData())
+      );
+
+      allow create: if signedIn() && (
+        createChainAdminWritesOwnChain()
+        || createStoreStaffWritesOwnStore()
+      );
+
+      allow update, delete: if signedIn() && (
+        (isChainAdmin() && chainAdminCanAccessDocData())
+        || (isStoreStaff() && storeStaffCanAccessDocData())
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // products: 商品マスタ（店舗スコープ + チェーン整合）
+    // -------------------------------------------------------------------------
+    match /products/{productId} {
+      allow read: if signedIn() && (
+        (isChainAdmin() && chainAdminCanAccessDocData())
+        || (isStoreStaff() && storeStaffCanAccessDocData())
+      );
+
+      allow create: if signedIn() && (
+        createChainAdminWritesOwnChain()
+        || createStoreStaffWritesOwnStore()
+      );
+
+      allow update, delete: if signedIn() && (
+        (isChainAdmin() && chainAdminCanAccessDocData())
+        || (isStoreStaff() && storeStaffCanAccessDocData())
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // categories / inventory 等: 同じスキーマ規約（chainId, storeId）で統一
+    // 新規コレクション追加時はここに match を足すか、下のフォールバックを調整
+    // -------------------------------------------------------------------------
+    match /categories/{categoryId} {
+      allow read: if signedIn() && (
+        (isChainAdmin() && chainAdminCanAccessDocData())
+        || (isStoreStaff() && storeStaffCanAccessDocData())
+      );
+
+      allow create: if signedIn() && (
+        createChainAdminWritesOwnChain()
+        || createStoreStaffWritesOwnStore()
+      );
+
+      allow update, delete: if signedIn() && (
+        (isChainAdmin() && chainAdminCanAccessDocData())
+        || (isStoreStaff() && storeStaffCanAccessDocData())
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // 明示しなかったパスはすべて拒否（カスタマー・不正ロールの read/write 遮断）
+    // -------------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

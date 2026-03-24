@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // マップ画像: 誰でも読める（公開 URL / Algolia に載せる前提）
+    // 書き込み: 認証済みユーザーのみ（初期設定）。本番でロール制限に締める場合は
+    // request.auth.token.role を firestore.rules と揃えて追加する。
+    match /maps/{storeId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // その他パスはデフォルト拒否
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

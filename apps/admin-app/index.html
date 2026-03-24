@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1e3a5f" />
+    <title>店舗管理 | AISA Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar" aria-label="メインナビゲーション">
+        <div class="sidebar-brand">
+          <span class="sidebar-logo" aria-hidden="true">◇</span>
+          <div>
+            <div class="sidebar-title">AISA</div>
+            <div class="sidebar-sub">店舗コンソール</div>
+            <p class="sidebar-email" id="user-email" hidden></p>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a class="nav-link nav-link--active" href="#products">商品管理</a>
+          <a class="nav-link" href="#store">店舗設定</a>
+          <a class="nav-link" href="#reports">レポート</a>
+        </nav>
+        <div class="sidebar-footer">
+          <button type="button" class="btn btn--ghost btn--block" id="open-login">ログイン画面を開く</button>
+          <button type="button" class="btn btn--danger-ghost btn--block" id="logout-btn">ログアウト</button>
+        </div>
+      </aside>
+
+      <div class="main-column">
+        <header class="top-header">
+          <div>
+            <h1 class="page-title">商品管理</h1>
+            <p class="page-desc">Firestore / Algolia 連携を想定した一覧ビュー（モック）</p>
+          </div>
+          <div class="header-actions">
+            <button type="button" class="btn btn--secondary" id="open-login-header">ログイン</button>
+            <button type="button" class="btn btn--primary">＋ 新規登録</button>
+          </div>
+        </header>
+
+        <main class="content">
+          <section class="panel" aria-labelledby="products-heading">
+            <div class="panel-head">
+              <h2 id="products-heading" class="panel-title">商品一覧</h2>
+              <div class="panel-tools">
+                <label class="sr-only" for="filter-sku">SKU で絞り込み</label>
+                <input id="filter-sku" class="input input--sm" type="search" placeholder="SKU / 名前で検索…" />
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">商品名</th>
+                    <th scope="col">SKU</th>
+                    <th scope="col" class="cell-num">税込価格</th>
+                    <th scope="col">更新</th>
+                    <th scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>牛乳 1L</td>
+                    <td><code class="mono">SKU-MILK-001</code></td>
+                    <td class="cell-num">¥228</td>
+                    <td>2025/03/20</td>
+                    <td class="cell-actions"><button type="button" class="link-btn">編集</button></td>
+                  </tr>
+                  <tr>
+                    <td>おにぎり 鮭</td>
+                    <td><code class="mono">SKU-ONI-SAL</code></td>
+                    <td class="cell-num">¥168</td>
+                    <td>2025/03/21</td>
+                    <td class="cell-actions"><button type="button" class="link-btn">編集</button></td>
+                  </tr>
+                  <tr>
+                    <td>洗剤 詰替</td>
+                    <td><code class="mono">SKU-DET-LIQ</code></td>
+                    <td class="cell-num">¥498</td>
+                    <td>2025/03/18</td>
+                    <td class="cell-actions"><button type="button" class="link-btn">編集</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel panel--map" aria-labelledby="map-heading">
+            <div class="panel-head panel-head--split">
+              <div>
+                <h2 id="map-heading" class="panel-title">マップ &amp; ピン座標（予定）</h2>
+                <p class="panel-sub">
+                  マップ画像をプレビューしながらクリックし、ピン用の <strong>X, Y</strong>（0–1 正規化）を取得するエリアの枠組みです。
+                </p>
+              </div>
+              <div class="coord-readout" aria-live="polite">
+                <span class="coord-label">最後のクリック</span>
+                <span class="coord-values" id="coord-xy">X: —　Y: —</span>
+              </div>
+            </div>
+            <div class="map-workspace" id="map-workspace" role="application" aria-label="マッププレビュー（クリックで座標取得）">
+              <div class="map-workspace-inner">
+                <div class="map-preview-grid"></div>
+                <div class="map-preview-fake-aisle"></div>
+                <span class="map-preview-badge">プレースホルダー</span>
+              </div>
+            </div>
+            <p class="map-hint">※ 本番では Storage の画像を重ね、クリック位置を正規化してピン JSON に保存します。</p>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="login-modal" hidden>
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="login-title"
+        aria-describedby="login-desc"
+      >
+        <button type="button" class="modal-close" id="close-login" aria-label="閉じる">×</button>
+        <div class="modal-header">
+          <h2 id="login-title" class="modal-title">ログイン</h2>
+          <p id="login-desc" class="modal-desc">Firebase Auth（メール / パスワード等）を想定したフォーム枠です。</p>
+        </div>
+        <form class="login-form" id="login-form">
+          <p class="login-error" id="login-error" role="alert" hidden></p>
+          <div class="field">
+            <label for="login-email">メールアドレス</label>
+            <input id="login-email" class="input" type="email" autocomplete="username" placeholder="you@example.com" />
+          </div>
+          <div class="field">
+            <label for="login-password">パスワード</label>
+            <input id="login-password" class="input" type="password" autocomplete="current-password" placeholder="••••••••" />
+          </div>
+          <div class="field field--inline">
+            <label class="checkbox">
+              <input type="checkbox" />
+              <span>ログイン状態を保持</span>
+            </label>
+            <a class="text-link" href="#forgot">パスワードをお忘れの方</a>
+          </div>
+          <button type="submit" class="btn btn--primary btn--block" id="login-submit">ログイン</button>
+          <p class="modal-footnote">Firebase Auth（メール / パスワード）でログインします。</p>
+        </form>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

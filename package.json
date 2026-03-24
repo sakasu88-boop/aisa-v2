@@ -1,0 +1,12 @@
+{
+    "name": "aisa-v2-monorepo",
+    "private": true,
+    "workspaces": [
+      "apps/*"
+    ],
+    "scripts": {
+      "dev:admin": "npm run dev -w apps/admin-app",
+      "dev:customer": "npm run dev -w apps/customer-app",
+      "install:all": "npm install"
+    }
+  }

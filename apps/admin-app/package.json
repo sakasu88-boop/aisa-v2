@@ -1,0 +1,16 @@
+{
+  "name": "aisa-admin-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^11.6.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
