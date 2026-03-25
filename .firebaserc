@@ -6,9 +6,11 @@
     "your-firebase-project-id": {
       "hosting": {
         "admin-site": [
+          "aisa-admin-fca87",
           "aisa-v2-admin"
         ],
         "customer-site": [
+          "aisa-search-fca87",
           "aisa-v2-search"
         ]
       }
