@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "your-firebase-project-id"
-  }
+  },
+  "targets": {
+    "your-firebase-project-id": {
+      "hosting": {
+        "admin-site": [
+          "aisa-v2-admin"
+        ],
+        "customer-site": [
+          "aisa-v2-search"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
