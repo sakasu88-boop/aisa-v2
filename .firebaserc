@@ -1,20 +1,17 @@
 {
   "projects": {
-    "default": "your-firebase-project-id"
+    "default": "aisa-v2-fca87"
   },
   "targets": {
-    "your-firebase-project-id": {
+    "aisa-v2-fca87": {
       "hosting": {
         "admin-site": [
-          "aisa-admin-fca87",
-          "aisa-v2-admin"
+          "aisa-admin-fca87"
         ],
         "customer-site": [
-          "aisa-search-fca87",
-          "aisa-v2-search"
+          "aisa-search-fca87"
         ]
       }
     }
-  },
-  "etags": {}
+  }
 }
